@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>R-Chart Analyzer</title>
+<style>
+:root{
+  --paper:#eef2f6; --panel:#ffffff; --ink:#16243a; --muted:#4f5f78; --line:#c9d3df; --grid:#e1e8ef;
+  --ucl:#b9302a; --cl:#0b7566; --lcl:#2b5ea7; --out-bg:#fdecea; --warn-bg:#fff5e0; --warn-line:#d9992b;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  --sans:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55}
+.wrap{max-width:980px;margin:0 auto;padding:0 20px 80px}
+header.top{padding:44px 0 26px;border-bottom:3px solid var(--ink)}
+header.top h1{font-family:var(--serif);font-size:clamp(2rem,5vw,3rem);line-height:1.1;margin:0 0 8px;letter-spacing:-.01em}
+header.top p{margin:0;color:var(--muted);max-width:60ch}
+section.block{padding:30px 0;border-bottom:1px solid var(--line)}
+section.block:last-child{border-bottom:0}
+h2{font-family:var(--serif);font-size:1.55rem;margin:0 0 12px;line-height:1.2}
+h3{font-family:var(--serif);font-size:1.15rem;margin:22px 0 6px}
+p{margin:0 0 12px;max-width:75ch}
+.muted{color:var(--muted)}
+.small{font-size:.9rem}
+button,.btn{font:inherit;cursor:pointer}
+.btn{display:inline-block;background:var(--ink);color:#fff;border:2px solid var(--ink);padding:9px 18px;border-radius:4px;font-weight:600}
+.btn:hover{background:#0d1828}
+.btn.alt{background:transparent;color:var(--ink)}
+.btn.alt:hover{background:#dfe6ee}
+.linkbtn{background:none;border:0;padding:0;color:var(--lcl);text-decoration:underline;font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid #f2a900;outline-offset:2px}
+#drop{border:2px dashed #7f90a8;background:var(--panel);padding:30px 22px;text-align:center;border-radius:6px}
+#drop.over{background:#e6f0fb;border-color:var(--lcl)}
+#drop p{margin:0 auto 12px}
+#fileName{font-weight:600}
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:4px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:7px 12px;text-align:left;border-bottom:1px solid var(--grid);white-space:nowrap}
+th{background:#f4f7fa;font-weight:600;border-bottom:1px solid var(--line)}
+td.num,th.num{text-align:right}
+tr.out td{background:var(--out-bg);font-weight:600}
+tr.out td:first-child{box-shadow:inset 4px 0 0 var(--ucl)}
+.msg{border-left:5px solid var(--ucl);background:var(--out-bg);padding:14px 18px;border-radius:0 4px 4px 0;margin:0 0 4px}
+.msg h2{font-size:1.2rem;margin:0 0 6px}
+.msg ul{margin:8px 0 0;padding-left:20px}
+.msg li{margin-bottom:3px}
+.note{border-left:5px solid var(--warn-line);background:var(--warn-bg);padding:10px 16px;border-radius:0 4px 4px 0;margin:0 0 10px;max-width:none}
+.note.info{border-color:var(--lcl);background:#e9f1fc}
+.reading{font-size:1.08rem}
+details.change{margin-top:10px;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 16px}
+details.change summary{cursor:pointer;font-weight:600}
+fieldset{border:0;margin:12px 0 0;padding:0}
+label.opt{display:block;margin:4px 0}
+.sub{margin:8px 0 8px 26px;padding:10px 14px;background:#f4f7fa;border-radius:4px}
+select,input[type=number]{font:inherit;padding:6px 8px;border:1px solid #8a9ab0;border-radius:4px;background:#fff;color:var(--ink)}
+input[type=number]{width:6em}
+.checks label{display:inline-block;margin:2px 14px 2px 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px}
+.chip{border:1px solid #8a9ab0;background:#fff;border-radius:999px;padding:2px 12px;font:inherit;cursor:pointer}
+.chip:hover{background:#dfe6ee}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0;margin:0;border:1px solid var(--line);background:var(--panel);border-radius:4px}
+.facts div{padding:12px 16px;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid)}
+.facts dt{font-size:.88rem;color:var(--muted)}
+.facts dd{margin:0;font-size:1.35rem;font-weight:600;font-variant-numeric:tabular-nums}
+.chartbox{background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow-x:auto;padding:6px}
+.chartbox svg{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 26px;margin:12px 0 0;padding:0;list-style:none}
+.legend li{display:flex;align-items:center;gap:8px;font-size:.95rem}
+.legend svg{width:34px;height:10px;flex:none}
+.limits td:first-child{font-weight:600}
+.formula{font-family:var(--serif);font-size:1.15rem;background:#f4f7fa;border-left:4px solid var(--ink);padding:8px 14px;margin:6px 0;max-width:none}
+.formula.work{background:var(--panel);border-left-color:var(--cl)}
+.oc li{margin-bottom:6px}
+.status-ok{color:#0b6b4d}
+.status-out{color:var(--ucl)}
+.legend-sym{display:inline-block}
+@media (max-width:560px){ th,td{padding:6px 8px} }
+@media print{ #uploadSec,#organize details,.linkbtn{display:none} body{background:#fff} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>R-Chart Analyzer</h1>
+  <p>MGT201 Operations Management. Upload your measurements to see whether the variation inside your groups is staying consistent.</p>
+</header>
+
+<section class="block" id="uploadSec">
+  <h2>Upload your data</h2>
+  <div id="drop">
+    <p>Drop a CSV file here, or choose one from your computer.</p>
+    <label class="btn" for="file">Choose a CSV file</label>
+    <input id="file" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" hidden>
+    <p class="muted small" style="margin-top:14px">Your file is read in this browser window only. Nothing is uploaded anywhere.</p>
+    <p class="small" style="margin:0">No file handy? <button type="button" class="linkbtn" id="sample">Try some example data</button></p>
+  </div>
+  <p id="fileName" class="small" style="margin-top:10px"></p>
+</section>
+
+<section class="block" id="preview" hidden></section>
+<section class="block" id="problem" hidden></section>
+<section class="block" id="notes" hidden></section>
+<section class="block" id="organize" hidden></section>
+<div id="results" hidden></div>
+
+</div>
+
+<script>
+/* ============================================================
+   CORE-START  (no page access in this part)
+   ============================================================ */
+const RBAR = 'R\u0304';
+// Standard R-chart constants: subgroup size n -> [D3, D4]
+const D_TABLE = {
+  2:[0,3.267],3:[0,2.574],4:[0,2.282],5:[0,2.114],6:[0,2.004],7:[0.076,1.924],8:[0.136,1.864],
+  9:[0.184,1.816],10:[0.223,1.777],11:[0.256,1.744],12:[0.283,1.717],13:[0.307,1.693],
+  14:[0.328,1.672],15:[0.347,1.653],16:[0.363,1.637],17:[0.378,1.622],18:[0.391,1.608],
+  19:[0.403,1.597],20:[0.415,1.585],21:[0.425,1.575],22:[0.434,1.566],23:[0.443,1.557],
+  24:[0.451,1.548],25:[0.459,1.541]
+};
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function rnd(x){return Math.round(x*1e10)/1e10;}
+function fmt(x,d){let s=Number(x).toFixed(d); if(/^-0(\.0+)?$/.test(s)) s=s.slice(1); return s;}
+function err(kind,title,message,details){return {ok:false,kind,title,message,details:details||[]};}
+
+/* ---------- number reading ---------- */
+function cleanNum(s,delim){
+  if(s==null) return null;
+  let t=String(s).trim();
+  if(t==='') return null;
+  t=t.replace(/^[$€£]\s*/,'').replace(/\s*%$/,'');
+  if(delim!==',' && /^[-+]?\d+,\d+$/.test(t)) t=t.replace(',','.');
+  else if(/^[-+]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t=t.replace(/,/g,'');
+  return t;
+}
+function toNum(s,delim){
+  const t=cleanNum(s,delim);
+  if(t===null) return null;
+  if(!/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(t)) return NaN;
+  return parseFloat(t);
+}
+function decimalsOf(s,delim){
+  const t=cleanNum(s,delim); if(t===null) return 0;
+  const m=t.replace(/[eE].*$/,'').match(/\.(\d+)/); return m?m[1].length:0;
+}
+function isNum(s,delim){const v=toNum(s,delim);return typeof v==='number'&&!Number.isNaN(v);}
+
+/* ---------- CSV reading ---------- */
+function detectDelimiter(text){
+  const lines=text.split(/\r\n|\n|\r/).filter(l=>l.trim()!=='').slice(0,15);
+  let best=',',bestScore=0;
+  for(const d of [',',';','\t','|']){
+    const counts=lines.map(l=>{let q=false,c=0;for(const ch of l){if(ch==='"')q=!q;else if(ch===d&&!q)c++;}return c;});
+    if(!counts.length||!counts[0]) continue;
+    const same=counts.filter(c=>c===counts[0]).length;
+    const score=same*1000+counts[0];
+    if(score>bestScore){bestScore=score;best=d;}
+  }
+  return best;
+}
+function parseCSV(text,d){
+  const rows=[];let row=[],field='',inQ=false,line=1,rowLine=1,quoteLine=0;
+  const pushRow=()=>{row.push(field);field='';rows.push({cells:row,line:rowLine});row=[];};
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else inQ=false; }
+      else{ if(c==='\n') line++; field+=c; }
+    }else{
+      if(c==='"'&&field.trim()===''){inQ=true;field='';quoteLine=line;}
+      else if(c===d){row.push(field);field='';}
+      else if(c==='\r'||c==='\n'){ if(c==='\r'&&text[i+1]==='\n') i++; pushRow(); line++; rowLine=line; }
+      else field+=c;
+    }
+  }
+  if(inQ) return {rows,unterminated:quoteLine};
+  if(field!==''||row.length) pushRow();
+  return {rows,unterminated:0};
+}
+
+function buildTable(text){
+  text=text.replace(/^\uFEFF/,'');
+  if(text.trim()==='') return {error:err('file','The file is empty','The file you chose does not contain any text, so there is nothing to analyze. Please check that you picked the right file.')};
+  if(/\u0000/.test(text)||text.slice(0,2)==='PK'||text.slice(0,4)==='%PDF')
+    return {error:err('file',"I can't read this file as a CSV",'This looks like a spreadsheet or another kind of file, not a plain CSV file. If your data is in Excel, choose File, then Save As, then pick "CSV (Comma delimited)", and upload the new file.')};
+  const delim=detectDelimiter(text);
+  const p=parseCSV(text,delim);
+  if(p.unterminated) return {error:err('file',"I can't read this file as a CSV",'A quotation mark was opened on line '+p.unterminated+' but never closed, so I cannot tell where the values end. Please remove or fix that quotation mark and upload the file again.')};
+  let recs=p.rows.map(r=>({line:r.line,cells:r.cells.map(c=>c.trim())})).filter(r=>r.cells.some(c=>c!==''));
+  if(!recs.length) return {error:err('file','The file contains no data','The file has no values in it, only blank lines. Please upload a file that has your measurements in it.')};
+  const width=Math.max(...recs.map(r=>r.cells.length));
+  recs.forEach(r=>{while(r.cells.length<width) r.cells.push('');});
+  const first=recs[0].cells.filter(c=>c!=='');
+  const numericFirst=first.filter(c=>isNum(c,delim)).length;
+  const hasHeader=first.length>0&&numericFirst/first.length<0.5;
+  let headers,data;
+  if(hasHeader){headers=recs[0].cells;data=recs.slice(1);}
+  else{headers=Array(width).fill('');data=recs;}
+  if(!data.length) return {error:err('file','The file contains column titles but no data','I found a single row that looks like column titles ('+recs[0].cells.filter(Boolean).slice(0,6).join(', ')+') but no rows of measurements under it. Please add your measurements and upload the file again.')};
+  const keep=[];
+  for(let j=0;j<width;j++) if(data.some(r=>r.cells[j]!=='')) keep.push(j);
+  const heads=keep.map(j=>headers[j]||('Column '+(j+1)));
+  const rows=data.map(r=>({line:r.line,cells:keep.map(j=>r.cells[j])}));
+  const table={headers:heads,hasHeader,rows,delim};
+  table.cols=colStats(table);
+  return {table};
+}
+
+function colStats(table){
+  return table.headers.map((h,j)=>{
+    const nb=table.rows.map(r=>r.cells[j]).filter(v=>v!=='');
+    const nums=nb.filter(v=>isNum(v,table.delim));
+    const numeric=nb.length>0&&nums.length/nb.length>=0.6;
+    return {j,name:h,nonblank:nb.length,numCount:nums.length,numeric,uniq:new Set(nb).size,
+            values:table.rows.map(r=>r.cells[j])};
+  });
+}
+
+/* ---------- guessing how the data is organized ---------- */
+function isIdName(name){
+  return /^(?:sub)?(?:group|sample|batch|lot|run|shift|trial|set|day|week|month|hour|period|date|time|obs(?:ervation)?s?|unit|order|id|index|no\.?|num(?:ber)?|#)(?:\s*(?:no\.?|num(?:ber)?|id|#|index|name|label))?$/i.test(String(name).trim());
+}
+function isSequential(vals){
+  const v=vals.map(Number); if(v.length<2||v.some(Number.isNaN)) return false;
+  if(new Set(v).size!==v.length) return false;
+  let inc=true,dec=true,step=v[1]-v[0],even=step!==0;
+  for(let i=1;i<v.length;i++){
+    if(v[i]<=v[i-1]) inc=false;
+    if(v[i]>=v[i-1]) dec=false;
+    if(Math.abs((v[i]-v[i-1])-step)>1e-9) even=false;
+  }
+  const ints=v.every(Number.isInteger);
+  return even||(inc&&ints)||(dec&&ints);
+}
+function blockLike(vals){
+  const runs=[];
+  vals.forEach(x=>{ if(runs.length&&runs[runs.length-1].v===x) runs[runs.length-1].n++; else runs.push({v:x,n:1}); });
+  return runs.length>=2 && new Set(runs.map(r=>r.v)).size===runs.length && runs.every(r=>r.n>=2);
+}
+function pickValueCol(cands){
+  const ok=cands.filter(c=>!isIdName(c.name));
+  const named=ok.filter(c=>/measure|value|weight|length|time|reading|result|size|diam|temp|height|width|thick|amount|data|mass|volume|score|duration|minutes|seconds|cost/i.test(c.name));
+  if(named.length) return named[named.length-1];
+  if(ok.length) return ok[ok.length-1];
+  return cands[cands.length-1];
+}
+
+function detect(table){
+  const cols=table.cols,delim=table.delim;
+  const numC=cols.filter(c=>c.numeric);
+  const textC=cols.filter(c=>!c.numeric&&c.nonblank>0);
+  if(!numC.length){
+    return {fail:err('structure','I could not find any numerical measurements',
+      'I looked through every column of your file and did not find numbers I could use as measurements. An R chart needs numerical measurements, such as weights, lengths, or times, arranged in groups of two or more.',
+      ['The columns I found are: '+table.headers.map(h=>'"'+h+'"').join(', ')+'.',
+       'Check that your measurements are written as plain numbers (for example 2.35) and not as words.'])};
+  }
+  const rowsCfg=(label,vals)=>({mode:'rows',labelCol:label,valueCols:vals});
+  const longCfg=(g,v)=>({mode:'long',groupCol:g,valueCol:v});
+  let candidates=[],sure=true,mode='rows';
+  if(textC.length){
+    const T=textC[0];
+    const repeats=T.uniq<T.nonblank;
+    if(numC.length>=2){
+      if(repeats){
+        const v=pickValueCol(numC);
+        candidates=[longCfg(T.j,v.j),rowsCfg(T.j,numC.map(c=>c.j))];mode='long';sure=false;
+      }else{
+        candidates=[rowsCfg(T.j,numC.map(c=>c.j)),longCfg(T.j,numC[0].j)];
+      }
+    }else{
+      if(repeats){ candidates=[longCfg(T.j,numC[0].j)];mode='long'; }
+      else{ return {mode:'list',cfg:{mode:'list',valueCol:numC[0].j,size:null},sure:true,
+                    why:'There is one measurement per row and nothing that says which group each belongs to.'}; }
+    }
+  }else{
+    if(numC.length===1){
+      return {mode:'list',cfg:{mode:'list',valueCol:numC[0].j,size:null},sure:true,why:'Your file is a single list of measurements.'};
+    }
+    const c0=numC[0];
+    const vals0=c0.values.filter(v=>v!=='');
+    const idName=table.hasHeader&&isIdName(c0.name);
+    const unique=c0.uniq===c0.nonblank;
+    if(blockLike(vals0)){
+      const rest=numC.slice(1);const v=pickValueCol(rest);
+      candidates=[longCfg(c0.j,v.j),rowsCfg(null,numC.map(c=>c.j))];mode='long';sure=numC.length===2;
+    }else if(idName&&!unique&&numC.length===2){
+      candidates=[longCfg(c0.j,numC[1].j)];mode='long';
+    }else if((unique&&(idName||isSequential(vals0)))||(idName&&numC.length>=3)){
+      if(numC.length>=3){ candidates=[rowsCfg(c0.j,numC.slice(1).map(c=>c.j)),rowsCfg(null,numC.map(c=>c.j))]; }
+      else return {mode:'list',cfg:{mode:'list',valueCol:numC[1].j,size:null},sure:true,
+                   why:'Each row has a number that just counts the rows ("'+c0.name+'") and one measurement.'};
+    }else{
+      candidates=[rowsCfg(null,numC.map(c=>c.j))];
+    }
+  }
+  return {mode,candidates,sure};
+}
+
+/* ---------- reading every value & building the groups ---------- */
+function problemsError(problems){
+  const lines=problems.slice(0,10).map(p=>p.kind==='blank'
+    ?'Line '+p.line+': the "'+p.col+'" cell is blank'+(p.group?' (group '+p.group+')':'')+'.'
+    :'Line '+p.line+': "'+p.raw+'" in the "'+p.col+'" column is not a number.');
+  if(problems.length>10) lines.push('...and '+(problems.length-10)+' more.');
+  const blanks=problems.filter(p=>p.kind==='blank').length,bad=problems.length-blanks;
+  const what=[];
+  if(blanks) what.push(blanks+' blank '+(blanks===1?'value':'values'));
+  if(bad) what.push(bad+' value'+(bad===1?'':'s')+' that '+(bad===1?'is':'are')+' not '+(bad===1?'a number':'numbers'));
+  return err('data',"Some measurements can't be used",
+    'I found '+what.join(' and ')+' where a measurement should be. Every measurement has to be a number, so I have not done any calculations yet. Please fix these in your file (or delete the rows that should not be there) and upload it again.',lines);
+}
+function checkColumn(table,j){
+  const problems=[];
+  table.rows.forEach(r=>{const v=toNum(r.cells[j],table.delim);
+    if(v===null) problems.push({line:r.line,col:table.headers[j],kind:'blank'});
+    else if(Number.isNaN(v)) problems.push({line:r.line,col:table.headers[j],kind:'bad',raw:r.cells[j]});});
+  return problems.length?problemsError(problems):null;
+}
+function groupName(label){return /^\d+(\.\d+)?$/.test(label)?'Group '+label:'Group "'+label+'"';}
+
+function analyze(table,cfg){
+  const delim=table.delim,H=table.headers;
+  let rows=table.rows;const notes=[];let dec=0;
+  const dedup=(cfg.mode==='rows'&&cfg.labelCol!=null)||(cfg.mode==='long'&&H.length>=3);
+  if(dedup){
+    const seen=new Set(),keep=[],removed=[];
+    rows.forEach(r=>{const k=r.cells.join('\u0001');if(seen.has(k)) removed.push(r.line);else{seen.add(k);keep.push(r);}});
+    rows=keep;
+    if(removed.length) notes.push({type:'dup',lines:removed});
+  }
+  const problems=[];
+  const readVal=(r,j,group)=>{
+    const raw=r.cells[j],v=toNum(raw,delim);
+    if(v===null){problems.push({line:r.line,col:H[j],kind:'blank',group});return null;}
+    if(Number.isNaN(v)){problems.push({line:r.line,col:H[j],kind:'bad',raw,group});return null;}
+    dec=Math.max(dec,decimalsOf(raw,delim));return v;
+  };
+  let groups=[],labelName='Group';
+  if(cfg.mode==='rows'){
+    if(cfg.valueCols.length<2) return err('structure','Each group would have only one measurement',
+      'I found numerical data, but I could not determine how your measurements are divided into groups. An R chart needs at least two groups with two or more measurements in each group.',
+      ['With the way I read your file, each row holds only '+cfg.valueCols.length+' measurement.']);
+    if(cfg.labelCol!=null) labelName=H[cfg.labelCol];
+    rows.forEach((r,i)=>{
+      const lab=cfg.labelCol!=null?(r.cells[cfg.labelCol]!==''?r.cells[cfg.labelCol]:'(line '+r.line+')'):String(i+1);
+      groups.push({label:lab,values:cfg.valueCols.map(j=>readVal(r,j,lab)),line:r.line});
+    });
+  }else if(cfg.mode==='cols'){
+    cfg.valueCols.forEach(j=>groups.push({label:H[j],values:rows.map(r=>readVal(r,j,H[j])),line:null}));
+  }else if(cfg.mode==='long'){
+    labelName=H[cfg.groupCol];
+    const map=new Map();
+    rows.forEach(r=>{
+      const g=r.cells[cfg.groupCol];
+      if(g===''){problems.push({line:r.line,col:H[cfg.groupCol],kind:'blank'});return;}
+      if(!map.has(g)) map.set(g,{label:g,values:[],line:r.line});
+      map.get(g).values.push(readVal(r,cfg.valueCol,g));
+    });
+    groups=[...map.values()];
+  }else if(cfg.mode==='list'){
+    const all=rows.map(r=>readVal(r,cfg.valueCol,null));
+    if(problems.length) return problemsError(problems);
+    const N=all.length,s=cfg.size;
+    if(!(s>=2)) return err('data','Group size is too small','Each group needs at least two measurements. Please enter a group size of 2 or more.');
+    if(s>25) return sizeError(s);
+    if(N%s!==0) return err('data',"Your measurements don't split evenly into groups of "+s,
+      'You have '+N+' measurements. Splitting them into groups of '+s+' gives '+Math.floor(N/s)+' full groups with '+(N%s)+' measurement'+(N%s===1?'':'s')+' left over. Check the group size, or remove the extra measurements from your file.');
+    if(N/s<2) return err('data','There are not enough measurements for two groups','You have '+N+' measurements, which makes only '+(N/s)+' group of '+s+'. An R chart needs at least two groups with two or more measurements in each group.');
+    for(let i=0;i<N/s;i++) groups.push({label:String(i+1),values:all.slice(i*s,(i+1)*s),line:null});
+  }
+  if(problems.length) return problemsError(problems);
+
+  if(groups.length<2) return err('structure','I could not find at least two groups',
+    'I found numerical data, but I could not determine how your measurements are divided into groups. An R chart needs at least two groups with two or more measurements in each group.',
+    ['With the way I read your file, I found '+groups.length+' group'+(groups.length===1?'':'s')+'.']);
+  const sizes=groups.map(g=>g.values.length);
+  if(Math.max(...sizes)<2) return err('structure','Each group has only one measurement',
+    'I found numerical data, but I could not determine how your measurements are divided into groups. An R chart needs at least two groups with two or more measurements in each group.',
+    ['With the way I read your file, every group has just one measurement.']);
+  const small=groups.filter(g=>g.values.length<2);
+  if(small.length){
+    const d=small.slice(0,10).map(g=>groupName(g.label)+' has only '+g.values.length+' measurement'+(g.values.length===1?'':'s')+'.');
+    if(small.length>10) d.push('...and '+(small.length-10)+' more.');
+    return err('data','A group has fewer than two measurements','Every group needs at least two measurements, because a range is the difference between the largest and smallest value in a group. I have not done any calculations yet.',d);
+  }
+  const counts={};sizes.forEach(s=>counts[s]=(counts[s]||0)+1);
+  const common=+Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a-b)[0];
+  const odd=groups.filter(g=>g.values.length!==common);
+  if(odd.length){
+    const d=odd.slice(0,10).map(g=>groupName(g.label)+' has '+g.values.length+' measurements (most groups have '+common+').');
+    if(odd.length>10) d.push('...and '+(odd.length-10)+' more.');
+    return err('data','The groups are not all the same size','This R chart needs every group to have the same number of measurements, because the control-limit constants depend on the group size. Please correct the groups below (or remove incomplete groups) and upload the file again.',d);
+  }
+  const n=common;
+  if(n>25) return sizeError(n);
+  const [D3,D4]=D_TABLE[n];
+  groups.forEach(g=>{g.min=Math.min(...g.values);g.max=Math.max(...g.values);g.range=rnd(g.max-g.min);});
+  const k=groups.length;
+  const dp=Math.min(dec,6),dpStat=Math.min(dp+2,8);
+  const sumR=rnd(groups.reduce((a,g)=>a+g.range,0));
+  const Rbar=sumR/k,UCL=D4*Rbar,LCLraw=D3*Rbar,LCL=Math.max(0,LCLraw);
+  const eps=1e-9*Math.max(1,UCL);
+  groups.forEach(g=>{g.status=g.range>UCL+eps?'above':(g.range<LCL-eps?'below':'ok');});
+  const dupLabels=new Set(),seenL=new Set();
+  groups.forEach(g=>{if(seenL.has(g.label)) dupLabels.add(g.label);seenL.add(g.label);});
+  if(dupLabels.size) notes.push({type:'duplabel',labels:[...dupLabels]});
+  return {ok:true,groups,k,n,D3,D4,sumR,Rbar,UCL,LCL,LCLraw,dp,dpStat,labelName,notes,
+          out:groups.filter(g=>g.status!=='ok')};
+}
+function sizeError(n){
+  return err('data','The groups are too large for the standard R-chart table',
+    'Your groups have '+n+' measurements each. The standard R-chart constants (D3 and D4) are available for group sizes from 2 to 25, so I cannot draw a reliable chart for this group size. If your measurements should be split into smaller groups, adjust your file or the group size and try again.');
+}
+/* ============================================================
+   CORE-END
+   ============================================================ */
+</script>
+
+<script>
+const $=id=>document.getElementById(id);
+let state=null;
+
+const SAMPLE=`Day,Bag 1,Bag 2,Bag 3,Bag 4
+1,2.1,2.3,2.2,2.4
+2,2.0,2.2,2.1,2.3
+3,2.4,2.5,2.3,2.4
+4,2.2,2.3,2.2,2.5
+5,2.1,2.2,2.4,2.3
+6,2.3,2.3,2.4,2.2
+7,2.0,2.4,2.2,2.3
+8,2.2,2.1,2.3,2.2
+9,2.4,2.3,2.5,2.2
+10,2.1,2.4,2.2,2.3
+11,1.8,2.6,2.2,2.3
+12,2.2,2.3,2.1,2.4
+`;
+
+/* ---------- file loading ---------- */
+$('file').addEventListener('change',e=>{const f=e.target.files[0]; if(f) readFile(f); e.target.value='';});
+$('sample').addEventListener('click',()=>{ $('fileName').textContent='Example data'; processText(SAMPLE); });
+const drop=$('drop');
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0]; if(f) readFile(f);});
+
+function readFile(f){
+  const r=new FileReader();
+  $('fileName').textContent='File: '+f.name;
+  r.onerror=()=>{resetAll();showProblem(err('file',"I can't read this file",'Your browser was not able to open the file. Please make sure it is a CSV file and try again.'));};
+  r.onload=()=>{
+    if(/\.(xlsx?|xlsm|pdf|docx?|png|jpe?g|zip)$/i.test(f.name)){
+      resetAll();showProblem(err('file',"This is not a CSV file",'The file "'+f.name+'" is not a CSV file. If your data is in Excel, choose File, then Save As, then pick "CSV (Comma delimited)", and upload that file instead.'));return;
+    }
+    processText(String(r.result));
+  };
+  r.readAsText(f);
+}
+
+function resetAll(){
+  ['preview','problem','notes','organize'].forEach(id=>{$(id).hidden=true;$(id).innerHTML='';});
+  $('results').hidden=true;$('results').innerHTML='';
+}
+function showProblem(e){
+  const p=$('problem');
+  p.innerHTML='<div class="msg" role="alert"><h2>'+esc(e.title)+'</h2><p>'+esc(e.message)+'</p>'+
+    (e.details&&e.details.length?'<ul>'+e.details.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'')+'</div>';
+  p.hidden=false;
+  p.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function clearOutputs(){
+  $('problem').hidden=true;$('problem').innerHTML='';
+  $('results').hidden=true;$('results').innerHTML='';
+}
+
+/* ---------- main flow ---------- */
+function processText(text){
+  resetAll();
+  const b=buildTable(text);
+  if(b.error){showProblem(b.error);return;}
+  const table=b.table;
+  state={table,cfg:null,det:null};
+  renderPreview(table);
+  const det=detect(table);
+  state.det=det;
+  if(det.fail){showProblem(det.fail);return;}
+  if(det.mode==='list'){
+    const bad=checkColumn(table,det.cfg.valueCol);
+    if(bad){showProblem(bad);return;}
+    state.cfg=det.cfg;
+    renderOrganize({ask:true,why:det.why});
+    return;
+  }
+  let firstErr=null;
+  for(let i=0;i<det.candidates.length;i++){
+    const cfg=det.candidates[i];
+    const res=analyze(table,cfg);
+    if(res.ok){state.cfg=cfg;present(res,{unsure:!det.sure&&i===0||i>0});return;}
+    if(i===0){firstErr=res;if(res.kind==='data'){state.cfg=cfg;failWith(res);return;}}
+  }
+  state.cfg=det.candidates[0];
+  failWith(firstErr);
+}
+function failWith(res){
+  clearOutputs();
+  showProblem(res);
+  renderOrganize({attention:true});
+}
+
+/* ---------- preview ---------- */
+function renderPreview(table){
+  const show=table.rows.slice(0,10);
+  const p=$('preview');
+  p.innerHTML='<h2>Preview of your file</h2>'+
+    '<p class="muted small">'+(table.hasHeader?'':"Your file doesn't seem to have column titles, so I labeled the columns myself. ")+
+    'Showing '+show.length+' of '+table.rows.length+' rows.</p>'+
+    '<div class="tablewrap"><table><thead><tr>'+table.headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+
+    show.map(r=>'<tr>'+r.cells.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+  p.hidden=false;
+}
+
+/* ---------- how I read the file ---------- */
+function nameList(table,idx){
+  const n=idx.map(j=>'"'+table.headers[j]+'"');
+  if(n.length<=4) return n.join(', ').replace(/, ([^,]*)$/,n.length>1?' and $1':', $1');
+  return n.slice(0,3).join(', ')+', ... and "'+table.headers[idx[idx.length-1]]+'"';
+}
+function describe(table,cfg){
+  if(cfg.mode==='rows'){
+    return 'Each row represents one group of measurements. '+
+      (cfg.labelCol!=null?'The "'+esc(table.headers[cfg.labelCol])+'" column names each group, and the':'Your groups are numbered 1, 2, 3, ... in the order they appear, and the')+
+      ' '+cfg.valueCols.length+' measurement columns ('+esc(nameList(table,cfg.valueCols))+') hold the measurements in each group.';
+  }
+  if(cfg.mode==='long'){
+    return 'Your measurements are listed one at a time. The "'+esc(table.headers[cfg.groupCol])+'" column says which group each measurement belongs to, and the "'+esc(table.headers[cfg.valueCol])+'" column holds the measurement.';
+  }
+  if(cfg.mode==='cols'){
+    return 'Each column represents one group of measurements: '+esc(nameList(table,cfg.valueCols))+'.';
+  }
+  return 'Your file is one list of measurements, and every '+cfg.size+' measurements in a row make up one group.';
+}
+function renderOrganize(opts){
+  const {table,cfg}=state;const o=$('organize');
+  const N=table.rows.length;
+  let html='';
+  if(opts.ask){
+    const divs=[];for(let s=2;s<=Math.min(25,Math.floor(N/2));s++) if(N%s===0) divs.push(s);
+    html+='<h2>How many measurements are in each group?</h2>'+
+      '<p>'+esc(opts.why||'')+' I found <strong>'+N+'</strong> measurements in total, but nothing in the file tells me how they are divided into groups. Enter how many measurements belong in each group (for example, 5 measurements taken each hour).</p>'+
+      (divs.length?'<p class="small muted">Your '+N+' measurements can be split evenly into groups of:</p><div class="chips">'+divs.map(s=>'<button type="button" class="chip" data-size="'+s+'">'+s+'</button>').join('')+'</div>':'')+
+      '<p><label for="sizeIn"><strong>Measurements in each group: </strong></label><input type="number" id="sizeIn" min="2" max="25" step="1" value="'+(cfg.size||'')+'"> '+
+      '<button type="button" class="btn" id="sizeGo">Use this group size</button></p>';
+  }else{
+    html+='<h2>How I read your file</h2><p class="reading">'+describe(table,cfg)+'</p>';
+    if(opts.unsure) html+='<p class="note">I wasn\'t completely sure how your data is organized, so I made my best guess. Please check the description above. If it is wrong, use the box below to change it.</p>';
+    if(opts.attention) html+='<p class="note">I could not analyze the data the way I first read it. If your data is organized differently, you can tell me below.</p>';
+  }
+  html+='<details class="change" id="chg"'+(opts.attention||opts.unsure?' open':'')+'><summary>'+(opts.ask?'My data is organized differently':'Not right? Change how I read my file')+'</summary>'+organizeForm()+'</details>';
+  o.innerHTML=html;o.hidden=false;
+  o.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{$('sizeIn').value=b.dataset.size;useSize();}));
+  if($('sizeGo')){$('sizeGo').addEventListener('click',useSize);$('sizeIn').addEventListener('keydown',e=>{if(e.key==='Enter')useSize();});}
+  wireForm();
+}
+function useSize(){
+  const s=parseInt($('sizeIn').value,10);
+  if(!(s>=2)){clearOutputs();showProblem(err('data','Please enter a group size','Type a whole number of 2 or more, for example 4 or 5.'));return;}
+  const cfg={mode:'list',valueCol:state.cfg.valueCol,size:s};
+  state.cfg=cfg;
+  const res=analyze(state.table,cfg);
+  if(res.ok){clearOutputs();present(res,{ask:true});}
+  else{clearOutputs();showProblem(res);}
+}
+
+/* ---------- manual change form ---------- */
+function organizeForm(){
+  const {table,cfg}=state;const cols=table.cols;
+  const cur=cfg.mode;
+  const numIdx=cols.filter(c=>c.numeric).map(c=>c.j);
+  const opts=(sel,list,none)=>(none?'<option value="-1">'+none+'</option>':'')+list.map(c=>'<option value="'+c.j+'"'+(c.j===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('');
+  const checks=(name,sel)=>'<div class="checks">'+cols.map(c=>'<label><input type="checkbox" name="'+name+'" value="'+c.j+'"'+(sel.includes(c.j)?' checked':'')+'> '+esc(c.name)+'</label>').join('')+'</div>';
+  const rowVals=cur==='rows'?cfg.valueCols:numIdx;
+  const colVals=cur==='cols'?cfg.valueCols:numIdx;
+  const lay=cur==='list'?'list':cur;
+  const R=(v,t)=>'<label class="opt"><input type="radio" name="lay" value="'+v+'"'+(lay===v?' checked':'')+'> '+t+'</label>';
+  return '<fieldset><legend><strong>How is your data organized?</strong></legend>'+
+    R('rows','Each row represents one group of measurements.')+
+    '<div class="sub" data-for="rows"><p class="small" style="margin-bottom:6px"><label>Which column names each group? <select id="f_label">'+opts(cur==='rows'&&cfg.labelCol!=null?cfg.labelCol:-1,cols,'None (number the groups 1, 2, 3, ...)')+'</select></label></p>'+
+    '<p class="small" style="margin-bottom:4px">Which columns hold the measurements?</p>'+checks('f_rowvals',rowVals)+'</div>'+
+    R('long','Your measurements are listed one at a time.')+
+    '<div class="sub" data-for="long"><p class="small" style="margin-bottom:6px"><label>Which column says which group each measurement belongs to? <select id="f_group">'+opts(cur==='long'?cfg.groupCol:0,cols)+'</select></label></p>'+
+    '<p class="small" style="margin:0"><label>Which column has the measurements? <select id="f_value">'+opts(cur==='long'?cfg.valueCol:(numIdx[numIdx.length-1]),cols.filter(c=>c.numeric))+'</select></label></p></div>'+
+    R('cols','Each column represents one group of measurements.')+
+    '<div class="sub" data-for="cols"><p class="small" style="margin-bottom:4px">Which columns are groups?</p>'+checks('f_colvals',colVals)+'</div>'+
+    R('list','It is one list of measurements, and I will tell you how many are in each group.')+
+    '<div class="sub" data-for="list"><p class="small" style="margin:0"><label>Which column has the measurements? <select id="f_lvalue">'+opts(cur==='list'?cfg.valueCol:numIdx[numIdx.length-1],cols.filter(c=>c.numeric))+'</select></label> '+
+    '<label>How many measurements are in each group? <input type="number" id="f_size" min="2" max="25" value="'+(cur==='list'&&cfg.size?cfg.size:'')+'"></label></p></div>'+
+    '</fieldset><p style="margin-top:12px"><button type="button" class="btn" id="applyForm">Analyze with these choices</button></p>';
+}
+function wireForm(){
+  const o=$('organize');
+  const sync=()=>{const v=(o.querySelector('input[name=lay]:checked')||{}).value;o.querySelectorAll('.sub').forEach(s=>s.hidden=s.dataset.for!==v);};
+  o.querySelectorAll('input[name=lay]').forEach(r=>r.addEventListener('change',sync));sync();
+  $('applyForm').addEventListener('click',()=>{
+    const lay=(o.querySelector('input[name=lay]:checked')||{}).value;
+    const checked=n=>[...o.querySelectorAll('input[name='+n+']:checked')].map(x=>+x.value);
+    let cfg;
+    if(lay==='rows'){const l=+$('f_label').value;cfg={mode:'rows',labelCol:l<0?null:l,valueCols:checked('f_rowvals').filter(j=>j!==l)};}
+    else if(lay==='long'){cfg={mode:'long',groupCol:+$('f_group').value,valueCol:+$('f_value').value};
+      if(cfg.groupCol===cfg.valueCol){clearOutputs();showProblem(err('data','Pick two different columns','The column that names the groups and the column that holds the measurements must be different.'));return;}}
+    else if(lay==='cols'){cfg={mode:'cols',valueCols:checked('f_colvals')};}
+    else{
+      cfg={mode:'list',valueCol:+$('f_lvalue').value,size:parseInt($('f_size').value,10)};
+      const bad=checkColumn(state.table,cfg.valueCol);
+      if(bad){clearOutputs();showProblem(bad);return;}
+      if(!(cfg.size>=2)){clearOutputs();showProblem(err('data','Please enter a group size','Type how many measurements belong in each group (a whole number of 2 or more).'));return;}
+    }
+    state.cfg=cfg;
+    const res=analyze(state.table,cfg);
+    clearOutputs();
+    if(res.ok) present(res,{});
+    else{showProblem(res);}
+  });
+}
+
+/* ---------- notes ---------- */
+function renderNotes(res){
+  const items=[];
+  res.notes.forEach(n=>{
+    if(n.type==='dup'){
+      const L=n.lines.slice(0,8).join(', ')+(n.lines.length>8?', ...':'');
+      items.push('<p class="note info"><strong>Duplicate data found and removed.</strong> '+n.lines.length+' row'+(n.lines.length===1?' was':'s were')+' an exact copy of an earlier row (line'+(n.lines.length===1?'':'s')+' '+L+'), so I kept only one copy for the analysis. Rows that merely contain the same numbers as another row were kept, because repeated values can be real data.</p>');
+    }
+    if(n.type==='duplabel'){
+      items.push('<p class="note info">More than one group is labeled '+n.labels.slice(0,5).map(l=>'"'+esc(l)+'"').join(', ')+'. They were still treated as separate groups, in the order they appear. If this was not intended, check the label column in your file.</p>');
+    }
+  });
+  const cfg=state.cfg,t=state.table,used=new Set();
+  if(cfg.mode==='rows'){if(cfg.labelCol!=null)used.add(cfg.labelCol);cfg.valueCols.forEach(j=>used.add(j));}
+  if(cfg.mode==='cols') cfg.valueCols.forEach(j=>used.add(j));
+  if(cfg.mode==='long'){used.add(cfg.groupCol);used.add(cfg.valueCol);}
+  if(cfg.mode==='list') used.add(cfg.valueCol);
+  const unused=t.headers.map((h,j)=>({h,j})).filter(x=>!used.has(x.j));
+  if(unused.length) items.push('<p class="note info">I did not use '+(unused.length===1?'this column':'these columns')+': '+unused.map(x=>'"'+esc(x.h)+'"').join(', ')+'. They do not look like measurements or group names.</p>');
+  const n=$('notes');
+  if(items.length){n.innerHTML='<h2>Notes about your data</h2>'+items.join('');n.hidden=false;}
+  else{n.hidden=true;n.innerHTML='';}
+}
+
+/* ---------- show results ---------- */
+function present(res,opts){
+  clearOutputs();
+  renderNotes(res);
+  renderOrganize(Object.assign({},opts,{ask:false}));
+  if(opts.ask){ // keep the size question visible when the group size came from the user
+    renderOrganizeAsk();
+  }
+  renderResults(res);
+}
+function renderOrganizeAsk(){
+  const {table,cfg}=state,N=table.rows.length;
+  const o=$('organize');
+  const divs=[];for(let s=2;s<=Math.min(25,Math.floor(N/2));s++) if(N%s===0) divs.push(s);
+  o.innerHTML='<h2>How many measurements are in each group?</h2>'+
+    '<p class="reading">You have <strong>'+N+'</strong> measurements in one list, and I am using <strong>'+cfg.size+'</strong> measurements per group. Changed your mind?</p>'+
+    (divs.length?'<div class="chips">'+divs.map(s=>'<button type="button" class="chip" data-size="'+s+'">'+s+'</button>').join('')+'</div>':'')+
+    '<p><label for="sizeIn"><strong>Measurements in each group: </strong></label><input type="number" id="sizeIn" min="2" max="25" step="1" value="'+cfg.size+'"> <button type="button" class="btn" id="sizeGo">Update the chart</button></p>'+
+    '<details class="change"><summary>My data is organized differently</summary>'+organizeForm()+'</details>';
+  o.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{$('sizeIn').value=b.dataset.size;useSize();}));
+  $('sizeGo').addEventListener('click',useSize);$('sizeIn').addEventListener('keydown',e=>{if(e.key==='Enter')useSize();});
+  wireForm();
+}
+
+function renderResults(res){
+  const {groups,k,n,D3,D4,sumR,Rbar,UCL,LCL,LCLraw,dp,dpStat,out}=res;
+  const f=x=>fmt(x,dp),g=x=>fmt(x,dpStat);
+  const zero=Rbar===0;
+  let h='';
+
+  /* calculations at a glance */
+  h+='<section class="block"><h2>R-chart calculations</h2>'+
+    '<dl class="facts">'+
+    '<div><dt>Number of subgroups</dt><dd>'+k+'</dd></div>'+
+    '<div><dt>Measurements per subgroup</dt><dd>'+n+'</dd></div>'+
+    '<div><dt>All subgroups the same size?</dt><dd>Yes</dd></div>'+
+    '<div><dt>Total of the subgroup ranges</dt><dd>'+f(sumR)+'</dd></div>'+
+    '<div><dt>Average range ('+RBAR+')</dt><dd>'+g(Rbar)+'</dd></div></dl>'+
+    (zero?'<p class="note" style="margin-top:12px">Every group has a range of 0, meaning the measurements inside each group are identical. The control limits are all 0, so the chart is flat. Check that your data was recorded with enough detail (for example, enough decimal places).</p>':'')+
+    '</section>';
+
+  /* chart */
+  h+='<section class="block"><h2>Control chart</h2><div class="chartbox">'+chartSVG(res)+'</div>'+
+    '<ul class="legend">'+
+    '<li><svg viewBox="0 0 34 10"><line x1="0" y1="5" x2="34" y2="5" stroke="var(--ucl)" stroke-width="2.5" stroke-dasharray="7 4"/></svg><span><strong>UCL</strong>: Upper Control Limit</span></li>'+
+    '<li><svg viewBox="0 0 34 10"><line x1="0" y1="5" x2="34" y2="5" stroke="var(--cl)" stroke-width="2.5"/></svg><span><strong>'+RBAR+'</strong>: center line (average range)</span></li>'+
+    '<li><svg viewBox="0 0 34 10"><line x1="0" y1="5" x2="34" y2="5" stroke="var(--lcl)" stroke-width="2.5" stroke-dasharray="2 4"/></svg><span><strong>LCL</strong>: Lower Control Limit</span></li>'+
+    '<li><svg viewBox="0 0 34 14"><circle cx="17" cy="7" r="4.5" fill="#16243a"/></svg><span>Range within limits</span></li>'+
+    '<li><svg viewBox="0 0 34 14"><path d="M17 0.5 L23.5 7 L17 13.5 L10.5 7Z" fill="var(--ucl)" stroke="#fff" stroke-width="1.5"/></svg><span>Range outside limits</span></li></ul></section>';
+
+  /* limits */
+  h+='<section class="block"><h2>Control limits</h2><div class="tablewrap"><table class="limits"><tbody>'+
+    '<tr><td>Upper Control Limit (UCL)</td><td class="num">'+g(UCL)+'</td><td class="muted">D4 × '+RBAR+'</td></tr>'+
+    '<tr><td>Average Range ('+RBAR+')</td><td class="num">'+g(Rbar)+'</td><td class="muted">Center line</td></tr>'+
+    '<tr><td>Lower Control Limit (LCL)</td><td class="num">'+g(LCL)+'</td><td class="muted">D3 × '+RBAR+(LCLraw<0?' (a negative result is shown as 0)':'')+'</td></tr>'+
+    '</tbody></table></div>'+
+    '<p style="margin-top:10px">Constants used for groups of <strong>n = '+n+'</strong>: <strong>D3 = '+D3+'</strong> and <strong>D4 = '+D4+'</strong>.'+
+    (D3===0?' For groups smaller than 7, D3 is 0, so the lower limit sits at 0 (a range cannot be negative).':'')+'</p></section>';
+
+  /* out of control */
+  h+='<section class="block"><h2>Out-of-control results</h2>';
+  if(!out.length) h+='<p><strong>No subgroup ranges are outside the control limits.</strong></p>';
+  else{
+    h+='<p>'+out.length+' of '+k+' subgroup range'+(k===1?'':'s')+' '+(out.length===1?'is':'are')+' outside the control limits:</p><ul class="oc">'+
+      out.map(o=>'<li><strong>'+esc(groupName(o.label))+'</strong> is '+(o.status==='above'?'above the Upper Control Limit':'below the Lower Control Limit')+
+        '. Its range is '+g(o.range)+', while the '+(o.status==='above'?'UCL is '+g(UCL):'LCL is '+g(LCL))+'.</li>').join('')+'</ul>';
+  }
+  h+='</section>';
+
+  /* calculation steps */
+  const sample=groups[0];
+  const rl=groups.map(x=>f(x.range));
+  const sumExpr=k<=10?rl.join(' + '):rl.slice(0,3).join(' + ')+' + ... + '+rl[k-1];
+  h+='<section class="block"><h2>How the R Chart Was Calculated</h2>'+
+    '<h3>Step 1: Find the range of each group</h3>'+
+    '<p class="formula">R = Maximum − Minimum</p>'+
+    '<p class="formula work">'+esc(groupName(sample.label))+': R = '+f(sample.max)+' − '+f(sample.min)+' = '+f(sample.range)+'</p>'+
+    '<p class="muted small">The same calculation is done for every group. All the ranges are listed in the table below.</p>'+
+    '<h3>Step 2: Find the average range</h3>'+
+    '<p class="formula">'+RBAR+' = Sum of Ranges / Number of Groups</p>'+
+    '<p class="formula work">'+RBAR+' = ('+esc(sumExpr)+') / '+k+' = '+f(sumR)+' / '+k+' = '+g(Rbar)+'</p>'+
+    '<h3>Step 3: Look up D3 and D4</h3>'+
+    '<p>D3 and D4 come from the standard table of R-chart constants. They depend on how many measurements are in each group. Your groups have n = '+n+' measurements, so D3 = '+D3+' and D4 = '+D4+'.</p>'+
+    '<h3>Step 4: Calculate the Upper Control Limit</h3>'+
+    '<p class="formula">UCL = D4 × '+RBAR+'</p>'+
+    '<p class="formula work">UCL = '+D4+' × '+g(Rbar)+' = '+g(UCL)+'</p>'+
+    '<h3>Step 5: Calculate the Lower Control Limit</h3>'+
+    '<p class="formula">LCL = D3 × '+RBAR+'</p>'+
+    '<p class="formula work">LCL = '+D3+' × '+g(Rbar)+' = '+g(LCLraw)+(LCLraw<0?' (shown as 0, because a range cannot be negative)':'')+'</p>'+
+    '</section>';
+
+  /* data table */
+  h+='<section class="block"><h2>Data table</h2><div class="tablewrap"><table><thead><tr>'+
+    '<th>Group</th><th class="num">Number of measurements</th><th class="num">Minimum</th><th class="num">Maximum</th><th class="num">Range</th><th>Status</th></tr></thead><tbody>'+
+    groups.map(x=>'<tr'+(x.status!=='ok'?' class="out"':'')+'><td>'+esc(x.label)+'</td><td class="num">'+x.values.length+'</td><td class="num">'+f(x.min)+'</td><td class="num">'+f(x.max)+'</td><td class="num">'+f(x.range)+'</td><td class="'+(x.status==='ok'?'status-ok':'status-out')+'">'+(x.status==='ok'?'Within Limits':'Outside Control Limits')+'</td></tr>').join('')+
+    '</tbody></table></div></section>';
+
+  /* interpretation */
+  h+='<section class="block"><h2>What this means for operations</h2>'+interpretation(res)+'</section>';
+
+  const r=$('results');r.innerHTML=h;r.hidden=false;
+}
+
+function interpretation(res){
+  const {k,n,Rbar,UCL,LCL,out,dpStat,D3}=res;const g=x=>fmt(x,dpStat);
+  let t='';
+  t+='<p><strong>The average range.</strong> The range of a group is the gap between its largest and smallest measurement. The average range, '+RBAR+' = '+g(Rbar)+', is the typical size of that gap across your '+k+' groups. A smaller average range means the measurements inside each group are closer together.</p>';
+  t+='<p><strong>The control limits.</strong> The UCL ('+g(UCL)+') and LCL ('+g(LCL)+') mark how far a group\'s range is expected to stray from '+RBAR+' just because of ordinary, everyday variation. They are calculated from the average range and the group size (n = '+n+'), not chosen by hand.'+
+    (D3===0?' For groups of this size the lower limit is 0, so only an unusually <em>large</em> range can fall outside the limits.':' A range far below the LCL would also be unusual and worth a look.')+'</p>';
+  if(!out.length){
+    t+='<p><strong>Your results.</strong> All '+k+' subgroup ranges fall inside the control limits. There is no evidence from the R chart of an out-of-control condition in the variation within your subgroups. The spread inside the groups looks consistent from one group to the next.</p>';
+  }else{
+    const names=out.map(o=>groupName(o.label));
+    const hasAbove=out.some(o=>o.status==='above'),hasBelow=out.some(o=>o.status==='below');
+    t+='<p><strong>Your results.</strong> '+esc(names.join(', ').replace(/, ([^,]*)$/,names.length>1?' and $1':', $1'))+' '+(out.length===1?'has':'have')+' a range outside the control limits. '+
+      (hasAbove?'A range above the UCL means the measurements in that group were spread out more than ordinary variation would explain. ':'')+
+      (hasBelow?'A range below the LCL means the measurements in that group were unusually close together, which can reflect a real improvement or a recording problem. ':'')+
+      'This unusual variation should be investigated: ask what was different at that time (for example a different operator, machine setting, material, or measurement method).</p>'+
+    '<p>Because of '+(out.length===1?'this point':'these points')+', the variation within groups does not look consistent across all the groups. Once the cause is understood, it is common practice to correct it and recalculate the limits.</p>';
+  }
+  t+='<p class="muted"><strong>Keep in mind.</strong> An R chart measures the variation <em>within</em> each subgroup. It does not show whether the process average is on target or drifting, and it cannot tell you whether the process meets customer specifications. It is commonly used together with an X-bar chart to evaluate how a process behaves.</p>';
+  return t;
+}
+
+/* ---------- chart ---------- */
+function niceStep(raw){const p=Math.pow(10,Math.floor(Math.log10(raw)));const m=raw/p;return (m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p;}
+function decs(x){const s=String(+x.toFixed(8));const i=s.indexOf('.');return i<0?0:s.length-i-1;}
+function chartSVG(res){
+  const {groups,k,UCL,LCL,Rbar,dp,dpStat,out,labelName}=res;
+  const rotate=k>10||groups.some(x=>x.label.length>5);
+  const W=Math.max(640,k*34+210),H=rotate?470:430;
+  const m={l:72,r:122,t:58,b:rotate?108:76};
+  const pw=W-m.l-m.r,ph=H-m.t-m.b;
+  const maxR=Math.max(...groups.map(x=>x.range));
+  let top=Math.max(UCL,maxR)*1.12;if(!(top>0)) top=1;
+  const step=niceStep(top/5),yMax=Math.ceil(top/step-1e-9)*step;
+  const Y=v=>m.t+ph-(v/yMax)*ph;
+  const X=i=>m.l+(i+0.5)*pw/k;
+  const td=decs(step);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" style="min-width:'+Math.min(W,Math.max(560,k*30+180))+'px" role="img" aria-label="R control chart of '+k+' subgroup ranges">'+
+    '<title>R Control Chart</title><desc>Range of each of '+k+' subgroups with the upper control limit '+fmt(UCL,dpStat)+', center line '+fmt(Rbar,dpStat)+' and lower control limit '+fmt(LCL,dpStat)+'. '+(out.length?out.length+' subgroup(s) outside the limits.':'No subgroups outside the limits.')+'</desc>'+
+    '<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#fff"/>'+
+    '<text x="'+(m.l+pw/2)+'" y="30" text-anchor="middle" font-family="Georgia,serif" font-size="22" font-weight="700" fill="#16243a">R Control Chart</text>';
+  // in-control band
+  s+='<rect x="'+m.l+'" y="'+Y(UCL)+'" width="'+pw+'" height="'+Math.max(0,Y(LCL)-Y(UCL))+'" fill="#0b7566" opacity=".07"/>';
+  // grid + y ticks
+  for(let v=0;v<=yMax+step/2;v+=step){
+    const y=Y(v);
+    s+='<line x1="'+m.l+'" y1="'+y+'" x2="'+(m.l+pw)+'" y2="'+y+'" stroke="#dfe6ee" stroke-width="1"/>'+
+       '<text x="'+(m.l-9)+'" y="'+(y+4)+'" text-anchor="end" font-size="12" fill="#4f5f78" font-family="Segoe UI,Arial,sans-serif">'+fmt(v,td)+'</text>';
+  }
+  s+='<line x1="'+m.l+'" y1="'+m.t+'" x2="'+m.l+'" y2="'+(m.t+ph)+'" stroke="#16243a" stroke-width="1.5"/>'+
+     '<line x1="'+m.l+'" y1="'+(m.t+ph)+'" x2="'+(m.l+pw)+'" y2="'+(m.t+ph)+'" stroke="#16243a" stroke-width="1.5"/>';
+  // x labels
+  groups.forEach((x,i)=>{
+    const lab=x.label.length>14?x.label.slice(0,13)+'…':x.label;
+    const cx=X(i),cy=m.t+ph+18;
+    s+='<line x1="'+cx+'" y1="'+(m.t+ph)+'" x2="'+cx+'" y2="'+(m.t+ph+5)+'" stroke="#16243a"/>';
+    s+= rotate
+      ?'<text transform="rotate(-45 '+cx+' '+cy+')" x="'+cx+'" y="'+cy+'" text-anchor="end" font-size="12" fill="#16243a" font-family="Segoe UI,Arial,sans-serif">'+esc(lab)+'<title>'+esc(x.label)+'</title></text>'
+      :'<text x="'+cx+'" y="'+cy+'" text-anchor="middle" font-size="13" fill="#16243a" font-family="Segoe UI,Arial,sans-serif">'+esc(lab)+'</text>';
+  });
+  s+='<text x="'+(m.l+pw/2)+'" y="'+(H-12)+'" text-anchor="middle" font-size="13" font-weight="600" fill="#16243a" font-family="Segoe UI,Arial,sans-serif">'+esc(labelName)+' (in original order)</text>';
+  s+='<text transform="rotate(-90 20 '+(m.t+ph/2)+')" x="20" y="'+(m.t+ph/2)+'" text-anchor="middle" font-size="14" font-weight="600" fill="#16243a" font-family="Segoe UI,Arial,sans-serif">Range</text>';
+  // limit lines
+  const lines=[
+    {v:UCL,c:'#b9302a',d:'8 5',t:'UCL = '+fmt(UCL,dpStat)},
+    {v:Rbar,c:'#0b7566',d:'',t:RBAR+' = '+fmt(Rbar,dpStat)},
+    {v:LCL,c:'#2b5ea7',d:'2 5',t:'LCL = '+fmt(LCL,dpStat)}
+  ];
+  lines.forEach(L=>{s+='<line x1="'+m.l+'" y1="'+Y(L.v)+'" x2="'+(m.l+pw)+'" y2="'+Y(L.v)+'" stroke="'+L.c+'" stroke-width="2.5"'+(L.d?' stroke-dasharray="'+L.d+'"':'')+'/>';});
+  const ys=lines.map(L=>({L,y:Y(L.v)+4}));
+  for(let i=1;i<ys.length;i++) if(ys[i].y-ys[i-1].y<16) ys[i].y=ys[i-1].y+16;
+  ys.forEach(o=>{s+='<text x="'+(m.l+pw+8)+'" y="'+o.y+'" font-size="13" font-weight="700" fill="'+o.L.c+'" font-family="Segoe UI,Arial,sans-serif">'+esc(o.L.t)+'</text>';});
+  // data line
+  s+='<polyline fill="none" stroke="#16243a" stroke-width="1.8" points="'+groups.map((x,i)=>X(i)+','+Y(x.range)).join(' ')+'"/>';
+  // points
+  groups.forEach((x,i)=>{
+    const cx=X(i),cy=Y(x.range),tip=esc(groupName(x.label))+': range '+fmt(x.range,dpStat)+(x.status==='ok'?'':(x.status==='above'?' (above UCL)':' (below LCL)'));
+    if(x.status==='ok') s+='<circle cx="'+cx+'" cy="'+cy+'" r="4.5" fill="#16243a"><title>'+tip+'</title></circle>';
+    else s+='<path d="M'+cx+' '+(cy-9)+' L'+(cx+9)+' '+cy+' L'+cx+' '+(cy+9)+' L'+(cx-9)+' '+cy+'Z" fill="#b9302a" stroke="#fff" stroke-width="2"><title>'+tip+'</title></path>';
+    if(k<=20||x.status!=='ok'){
+      const below=x.status==='below';
+      s+='<text x="'+cx+'" y="'+(below?cy+24:cy-14)+'" text-anchor="middle" font-size="'+(x.status==='ok'?11:12.5)+'" font-weight="'+(x.status==='ok'?400:700)+'" fill="'+(x.status==='ok'?'#4f5f78':'#b9302a')+'" font-family="Segoe UI,Arial,sans-serif" paint-order="stroke" stroke="#fff" stroke-width="3">'+fmt(x.range,dp)+'</text>';
+    }
+  });
+  return s+'</svg>';
+}
+</script>
+</body>
+</html>
